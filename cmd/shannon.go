@@ -14,7 +14,7 @@ type result struct {
 	filename        string
 	err             error
 	entropy         float64
-	compressability float64
+	compressibility float64
 }
 
 func (res result) Print(w *tabwriter.Writer) {
@@ -22,7 +22,11 @@ func (res result) Print(w *tabwriter.Writer) {
 		fmt.Fprintf(w, "%v\tn/a\tn/a\n", res.err)
 		return
 	}
-	fmt.Fprintf(w, "%s\t%.2f\t%.2f\n", res.filename, res.entropy, res.compressability)
+	fmt.Fprintf(w, "%s\t%.2f\t%.2f\n", res.filename, res.entropy, res.compressibility)
+}
+
+func compressibilityPercent(entropy float64) float64 {
+	return 100.0 - ((entropy / 8.0) * 100.0)
 }
 
 func main() {
@@ -35,29 +39,27 @@ func main() {
 
 	if flag.NArg() < 1 {
 		var res result
-		defer res.Print(w)
 
 		entropy, err := shannon.Shannon(os.Stdin)
 		if err != nil {
 			res = result{err: err}
+			res.Print(w)
 			return
 		}
-		pct := 100.0 - ((entropy / 8.0) * 100.0)
 
 		res = result{
 			filename:        "stdin",
 			err:             nil,
 			entropy:         entropy,
-			compressability: pct,
+			compressibility: compressibilityPercent(entropy),
 		}
+		res.Print(w)
 		return
 	}
 
 	results := make(chan result, 1)
-
 	wg := new(sync.WaitGroup)
 	wg.Add(flag.NArg())
-
 	for _, arg := range flag.Args() {
 		go func(arg string, wg *sync.WaitGroup, c chan result) {
 			defer wg.Done()
@@ -74,13 +76,11 @@ func main() {
 				return
 			}
 
-			pct := 100.0 - ((entropy / 8.0) * 100.0)
-
 			c <- result{
 				filename:        f.Name(),
 				err:             nil,
 				entropy:         entropy,
-				compressability: pct,
+				compressibility: compressibilityPercent(entropy),
 			}
 		}(arg, wg, results)
 	}
